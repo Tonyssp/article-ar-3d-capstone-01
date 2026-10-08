@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>아티클 - Capstone AR</title>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --bg-color: #1a1a1a; --card-bg: #252525; --accent-gold: #d4af37; --text-main: #f0f0f0; --text-sub: #a0a0a0; }
+        body { font-family: 'Gowun Batang', serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; box-sizing: border-box; }
+        
+        header { text-align: center; margin-bottom: 30px; width: 100%; }
+        h1 { font-size: 3rem; font-weight: 700; color: var(--accent-gold); margin: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); letter-spacing: -2px; }
+        p.subtitle { font-size: 0.9rem; color: var(--text-sub); margin-top: 5px; opacity: 0.8; }
+
+        .container { width: 100%; max-width: 480px; background-color: var(--card-bg); border: 1px solid #333; border-radius: 16px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); position: relative; overflow: hidden; margin-bottom: 20px; }
+        .container::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, var(--bg-color), var(--accent-gold), var(--bg-color)); }
+
+        /* 모델 선택 드롭다운 */
+        .model-selector { width: 100%; padding: 12px; margin-bottom: 20px; background-color: #1e1e1e; color: var(--accent-gold); border: 1px solid #444; border-radius: 8px; font-family: 'Gowun Batang', serif; font-size: 1rem; outline: none; cursor: pointer; }
+        
+        .upload-box { border: 2px dashed #444; border-radius: 12px; padding: 30px 20px; text-align: center; cursor: pointer; background: #1e1e1e; margin-bottom: 20px; position: relative; transition: 0.3s; }
+        .upload-box.active { border-color: var(--accent-gold); background: #2a2a2a; }
+        .upload-icon { font-size: 40px; margin-bottom: 10px; display: block; }
+        #imageFile { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+        #preview { max-width: 100%; max-height: 200px; border-radius: 8px; display: none; margin: 10px auto; border: 1px solid #444; }
+
+        button { width: 100%; padding: 16px; background-color: var(--accent-gold); color: #000; font-family: 'Gowun Batang', serif; font-size: 1.2rem; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 0 #8c7324; transition: all 0.1s; }
+        button:active { transform: translateY(4px); box-shadow: none; }
+        button:disabled { background-color: #444; color: #888; box-shadow: none; cursor: not-allowed; }
+
+        #arBtn, #downloadBtn { margin-top: 10px; display: none; }
+        #arBtn { background-color: #fff; color: #000; border: 2px solid var(--accent-gold); }
+        #downloadBtn { background-color: #444; color: #fff; border: 1px solid #666; font-size: 1rem; }
+
+        model-viewer { width: 100%; height: 400px; background-color: #000; border-radius: 12px; border: 1px solid var(--accent-gold); margin-bottom: 15px; display: block; }
+
+        .status-container { margin-top: 20px; display: none; }
+        .loading-text { text-align: center; color: var(--accent-gold); margin-top: 15px; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+        
+        .progress-steps { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.8rem; color: #666; }
+        .step { position: relative; width: 30%; text-align: center; }
+        .step.active { color: var(--accent-gold); font-weight: bold; }
+
+        /* History */
+        .history-list { display: flex; overflow-x: auto; gap: 10px; padding-bottom: 10px; }
+        .history-item { min-width: 100px; background: #333; border-radius: 8px; padding: 5px; text-align: center; position: relative; border: 1px solid #444; }
+        .history-item img { width: 100%; height: 80px; object-fit: cover; border-radius: 4px; }
+        .history-item span { font-size: 0.7rem; display: block; color: #ccc; margin: 5px 0; }
+        .history-item button.load-btn { width: 100%; padding: 5px; font-size: 0.8rem; background: var(--accent-gold); box-shadow: none; margin-bottom: 0; }
+        .history-item button.del-btn { position: absolute; top: -5px; right: -5px; width: 20px; height: 20px; padding: 0; background: #ff4444; color: white; border-radius: 50%; font-size: 12px; line-height: 20px; box-shadow: none; }
+
+        .dev-info { font-size: 0.7rem; color: #333; text-align: center; margin-top: 40px; }
+        #result-area { display: none; margin-top: 30px; animation: fadeIn 1s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>아티클</h1>
+    <p class="subtitle">당신의 상상을 현실로 빚어냅니다</p>
+</header>
+
+<div class="container" id="history-area" style="display:none;">
+    <h3 style="color: var(--accent-gold); margin-top:0; font-size: 1.2rem;">📂 지난 작품 불러오기</h3>
+    <div class="history-list" id="historyList"></div>
+</div>
+
+<div class="container">
+    <h3 style="color: #fff; font-size: 1rem; margin-bottom: 8px;">🛠️ 생성 모델 선택</h3>
+    <select id="modelSelect" class="model-selector">
+        <option value="hunyuan">🚀 테스트 (Hunyuan 3D 2.0) - 30초 소요</option>
+        <option value="hitem3d">💎 Hitem3D (High Quality) - 5분~10분 소요</option>
+    </select>
+
+    <div class="upload-box" id="dropArea">
+        <input type="file" id="imageFile" accept="image/*" onchange="previewImage(this)">
+        <span class="upload-icon">🖼️</span>
+        <span class="upload-text" id="uploadMsg">이곳을 눌러 사진을 선택하세요</span>
+        <img id="preview" src="" alt="미리보기">
+    </div>
+
+    <button id="startBtn" onclick="startProcess()">작품 생성하기</button>
+
+    <div class="status-container" id="statusArea">
+        <div class="progress-steps">
+            <div class="step" id="step1">서버 전송</div>
+            <div class="step" id="step2">AI 분석</div>
+            <div class="step" id="step3">모델링</div>
+        </div>
+        <div class="loading-text" id="statusText">준비 중...</div>
+    </div>
+</div>
+
+<div class="container" id="result-area">
+    <h3 style="text-align: center; color: var(--accent-gold); margin-top: 0;">완성된 작품</h3>
+    
+    <model-viewer id="viewer" src="" alt="3D generated model" ar ar-modes="scene-viewer webxr quick-look" camera-controls shadow-intensity="1" auto-rotate loading="eager"></model-viewer>
+    
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button id="arBtn" onclick="activateARMode()">📱 AR로 세상에 띄우기</button>
+        <button id="downloadBtn" onclick="downloadGLB()">💾 3D 모델 다운로드 (.glb)</button>
+    </div>
+
+    <p style="text-align: center; font-size: 0.8rem; color: #888; margin-top:10px;">손가락으로 돌려보거나 버튼을 눌러보세요.</p>
+    
+    <button onclick="location.reload()" style="background: #333; box-shadow: none; font-size: 1rem; padding: 10px; margin-top: 10px;">처음으로</button>
+</div>
+
+<div class="dev-info">Capstone Project: Article 3D Generator</div>
+
+<script>
+    // ==========================================
+    // 🔑 API Keys & Config
+    // ==========================================
+    
+    // 1. Worker (이미지 업로드 + Hitem 프록시)
+    const WORKER_BASE = "https://image-uploader.djuarticle.workers.dev";
+    const UPLOAD_URL  = WORKER_BASE + "/";
+    
+    // 2. Synexa (Hunyuan)
+    const API_KEY_SYNEXA = "CONFIGURE_ON_SERVER_API_KEY_SYNEXA";
+    const API_URL_SYNEXA = "https://api.synexa.ai/v1/predictions";
+
+    // 3. Hitem3D (프록시 경로)
+    const HITEM_AK = "CONFIGURE_ON_SERVER_HITEM_AK";
+    const HITEM_SK = "CONFIGURE_ON_SERVER_HITEM_SK";
+    const PROXY_AUTH   = WORKER_BASE + "/hitem/auth";
+    const PROXY_SUBMIT = WORKER_BASE + "/hitem/submit";
+    const PROXY_QUERY  = WORKER_BASE + "/hitem/query";
+
+    let currentGlbUrl = "";
+
+    // ==========================================
+    // 🚀 Main Logic
+    // ==========================================
+
+    window.onload = function() { loadHistory(); };
+
+    function previewImage(input) {
+        const file = input.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.getElementById('preview');
+                img.src = e.target.result;
+                img.style.display = 'block';
+                document.querySelector('.upload-icon').style.display = 'none';
+                document.getElementById('uploadMsg').innerText = "사진이 선택되었습니다";
+                document.querySelector('.upload-box').classList.add('active');
+            }
+            reader.readAsDataURL(file);
+        }
+    }
+
+    async function startProcess() {
+        const fileInput = document.getElementById('imageFile');
+        const modelSelect = document.getElementById('modelSelect').value;
+        
+        if (!fileInput.files[0]) { alert("먼저 이미지를 선택해주세요!"); return; }
+
+        // UI 전환
+        document.getElementById('startBtn').style.display = "none";
+        document.getElementById('statusArea').style.display = "block";
+        document.querySelector('.upload-box').style.pointerEvents = "none";
+
+        try {
+            // [Step 1] 이미지 업로드 (R2) - 썸네일/히스토리용
+            updateStep(1, "이미지를 서버에 기록 중...");
+            const file = fileInput.files[0];
+            const safeName = "capstone_" + Date.now() + ".jpg";
+            
+            const uploadRes = await fetch(UPLOAD_URL + safeName, { method: 'PUT', body: file });
+            if (!uploadRes.ok) throw new Error("이미지 서버 업로드 실패");
+            const imageUrl = await uploadRes.text();
+
+            // [Step 2] 모델 분기 처리
+            if (modelSelect === 'hunyuan') {
+                await processHunyuan(imageUrl.trim());
+            } else {
+                // Hitem3D는 로컬 파일 객체(file)를 직접 사용합니다.
+                // imageUrl은 히스토리 저장용으로 넘겨줍니다.
+                await processHitem3D(file, imageUrl.trim());
+            }
+
+        } catch (e) {
+            alert("오류 발생: " + e.message);
+            location.reload();
+        }
+    }
+
+    // 🏎️ Hunyuan (Synexa) 처리
+    async function processHunyuan(imageUrl) {
+        updateStep(2, "AI가 이미지를 분석 중... (Synexa)");
+        
+        const payload = {
+            "model": "tencent/hunyuan3d-2",
+            "input": {
+                "seed": 1234,
+                "image": imageUrl,
+                "steps": 5, 
+                "caption": "High quality 3D model, game ready asset, isolated.",
+                "shape_only": true,
+                "check_box_rembg": true,
+                "octree_resolution": "256"
+            }
+        };
+
+        const apiRes = await fetch(API_URL_SYNEXA, {
+            method: 'POST',
+            headers: { 'x-api-key': API_KEY_SYNEXA, 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!apiRes.ok) throw new Error("AI 요청 실패");
+        const json = await apiRes.json();
+
+        updateStep(3, "빠르게 모델링 중 (30초 소요)...");
+        await pollStatus(json.id, imageUrl, API_KEY_SYNEXA, API_URL_SYNEXA);
+    }
+
+    // 💎 Hitem3D 처리 (Worker 프록시)
+    async function processHitem3D(fileObject, historyImageUrl) {
+        updateStep(2, "Hitem3D 인증 요청 중...");
+
+        // 1. 인증 (Proxy)
+        const authStr = btoa(HITEM_AK + ":" + HITEM_SK);
+        const tokenRes = await fetch(PROXY_AUTH, {
+            method: 'POST',
+            headers: { 
+                'Authorization': 'Basic ' + authStr,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})
+        });
+        
+        const tokenJson = await tokenRes.json();
+        // 성공 코드: 200 또는 0
+        if (tokenJson.code !== 200 && tokenJson.code !== 0) {
+            throw new Error("인증 실패: " + (tokenJson.msg || "Unknown"));
+        }
+        const token = tokenJson.data.accessToken;
+
+        // 2. 작업 제출 (로컬 파일 직접 전송)
+        updateStep(2, "고품질 작업 제출 중...");
+        
+        const formData = new FormData();
+        formData.append("images", fileObject, "input.jpg");
+        formData.append("request_type", "3");
+        formData.append("model", "hitem3dv1.5");
+        formData.append("format", "2");
+        // 성공한 파라미터 적용
+        formData.append("resolution", "1024");
+        formData.append("face", "1000000");
+
+        const taskRes = await fetch(PROXY_SUBMIT, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token },
+            body: formData
+        });
+        
+        const taskJson = await taskRes.json();
+        if (taskJson.code !== 200 && taskJson.code !== 0) {
+            throw new Error("제출 실패: " + taskJson.msg);
+        }
+
+        updateStep(3, "고품질 렌더링 중 (5분~10분 소요)... 창을 닫지 마세요!");
+        await pollHitemStatus(taskJson.data.task_id, historyImageUrl, token);
+    }
+
+    // ==========================================
+    // ⏳ Polling Functions
+    // ==========================================
+
+    // Synexa Polling
+    async function pollStatus(id, imgUrl, key, url) {
+        const res = await fetch(`${url}/${id}`, { headers: { 'x-api-key': key } });
+        const data = await res.json();
+        
+        if (data.status === "succeeded") {
+            saveToHistory(imgUrl, data.output);
+            showResult(data.output);
+        } else if (data.status === "failed") {
+            throw new Error("생성 실패");
+        } else {
+            setTimeout(() => pollStatus(id, imgUrl, key, url), 2000);
+        }
+    }
+
+    // Hitem3D Polling
+    async function pollHitemStatus(taskId, imgUrl, token) {
+        const res = await fetch(`${PROXY_QUERY}?task_id=${taskId}`, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const json = await res.json();
+        
+        if (!json.data) { // 데이터가 없으면 재시도
+            setTimeout(() => pollHitemStatus(taskId, imgUrl, token), 5000);
+            return;
+        }
+
+        const state = json.data.state;
+
+        if (state === "success") {
+            const glbUrl = json.data.url;
+            saveToHistory(imgUrl, glbUrl);
+            showResult(glbUrl);
+        } else if (state === "failed") {
+            throw new Error("Hitem3D 생성 실패");
+        } else {
+            // Hitem은 느리므로 5초 간격
+            setTimeout(() => pollHitemStatus(taskId, imgUrl, token), 5000);
+        }
+    }
+
+    // ==========================================
+    // 🎨 UI Helpers
+    // ==========================================
+
+    function showResult(glbUrl) {
+        document.getElementById('statusArea').style.display = 'none';
+        const resultArea = document.getElementById('result-area');
+        
+        currentGlbUrl = glbUrl;
+        document.getElementById('viewer').src = glbUrl;
+        
+        document.getElementById('arBtn').style.display = 'block';
+        document.getElementById('downloadBtn').style.display = 'block';
+        resultArea.style.display = 'block';
+        
+        resultArea.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function activateARMode() {
+        const viewer = document.getElementById('viewer');
+        if (viewer.canActivateAR) viewer.activateAR();
+        else alert("이 기기에서는 AR을 지원하지 않습니다.");
+    }
+
+    async function downloadGLB() {
+        if (!currentGlbUrl) return;
+        try {
+            const res = await fetch(currentGlbUrl);
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none'; a.href = url; a.download = `capstone_model_${Date.now()}.glb`;
+            document.body.appendChild(a); a.click();
+            window.URL.revokeObjectURL(url); document.body.removeChild(a);
+        } catch(e) { alert("다운로드 실패"); }
+    }
+
+    function updateStep(stepNum, msg) {
+        document.querySelectorAll('.step').forEach((el, idx) => {
+            if (idx + 1 === stepNum) el.classList.add('active');
+            else el.classList.remove('active');
+        });
+        document.getElementById('statusText').innerText = msg;
+    }
+
+    // ==========================================
+    // 🗄️ History (LocalStorage)
+    // ==========================================
+
+    function saveToHistory(img, glb) {
+        let h = JSON.parse(localStorage.getItem('arHistory')) || [];
+        if (h.some(i => i.glb === glb)) return;
+        h.unshift({ id: Date.now(), date: new Date().toLocaleDateString(), img, glb });
+        if (h.length > 10) h.pop();
+        localStorage.setItem('arHistory', JSON.stringify(h)); loadHistory();
+    }
+    function loadHistory() {
+        const h = JSON.parse(localStorage.getItem('arHistory')) || [];
+        const area = document.getElementById('history-area');
+        const list = document.getElementById('historyList');
+        if (h.length === 0) { area.style.display = 'none'; return; }
+        area.style.display = 'block'; list.innerHTML = "";
+        h.forEach(i => {
+            const d = document.createElement('div'); d.className = 'history-item';
+            d.innerHTML = `<button class="del-btn" onclick="del(${i.id})">×</button><img src="${i.img}"><span>${i.date}</span><button class="load-btn" onclick="load('${i.glb}')">불러오기</button>`;
+            list.appendChild(d);
+        });
+    }
+    window.load = function(u) { showResult(u); };
+    window.del = function(id) {
+        if(!confirm("삭제하시겠습니까?")) return;
+        let h = JSON.parse(localStorage.getItem('arHistory')) || [];
+        localStorage.setItem('arHistory', JSON.stringify(h.filter(i => i.id !== id))); loadHistory();
+    };
+</script>
+
+</body>
+</html>
